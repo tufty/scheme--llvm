@@ -1,0 +1,6 @@
+[submodule "external/nanopass"]
+	path = external/nanopass
+	url = https://github.com/tufty/nanopass-framework.git
+[submodule "external/chez-srfi/srfi"]
+	path = external/chez-srfi/srfi
+	url = https://github.com/arcfide/chez-srfi
