@@ -84,6 +84,7 @@
 ;; Scheme with bodies explicitly sequenced
 (define-language L1
   (extends L0)
+  (entry Prog)
   (Expr (e body)
     (- (define (x x* ...) body* ...)
        (lambda (x* ...) body* ...)
@@ -101,9 +102,9 @@
 (define-parser parse-L1 L1)
 
 (define-pass make-begins-explicit : L0 (ir) -> L1 ()
-  (Prog : Prog (ir) -> Expr ()
+#;  (Prog : Prog (ir) -> Prog ()
     [(,[e*] ...) 
-     `(begin ,e* ...)])
+     `(,e* ...)])
   (Expr : Expr (ir) -> Expr ()
     [(define (,x ,x* ...) ,[body*] ...)                `(define (,x ,x* ...) (begin ,body* ...))]
     [(lambda (,x* ...) ,[body*] ...)                   `(lambda (,x* ...) (begin ,body* ...))]
@@ -111,11 +112,12 @@
     [(let ,x ((,x* ,[e*]) ...) ,[body*] ...)           `(let ,x ((,x* ,e*) ...) (begin ,body* ...))]
     [(let* ((,x* ,[e*]) ...) ,[body*] ...)             `(let* ((,x* ,e*) ...) (begin ,body* ...))]
     [(letrec ((,x* ,[e*]) ...) ,[body*] ...)           `(letrec ((,x* ,e*) ...) (begin ,body* ...))])
-  (Prog ir))
+ #; (Prog ir))
 
 ;; As above, begins reduced
 (define-language L2
   (extends L1)
+  (entry Prog)
   (Expr (e body)
     (- (begin e* ...))
     (+ (begin e1 e2))))
@@ -133,6 +135,7 @@
 ;; Reduce let forms into single lets only
 (define-language L3
   (extends L2)
+  (entry Prog)
   (Expr (e body)
     (- (let ((x* e*) ...) body)
        (let x ((x* e*) ...) body)
@@ -157,6 +160,7 @@
 
 (define-language L4
   (extends L3)
+  (entry Prog)
   (Expr (e body)
     (- (if e0 e1)
        (define (x x* ...) body))))
@@ -171,6 +175,7 @@
 
 (define-language L5
   (extends L4)
+  (entry Prog)
   (Expr (e body)
 	(- (begin e1 e2))))
 
@@ -211,6 +216,7 @@
 (define (normalize e k)
   (match e
     [`(lambda ,params ,body)   (k `(lambda ,params ,(normalize-term body)))]
+    [`(define ,name ,body)     (k `(define ,name ,(normalize-term body)))]
     [`(if ,e1 ,e2 ,e3)         (normalize-name e1 (lambda (t) 
                                                     (k `(if ,t ,(normalize-term e2) ,(normalize-term e3)))))]
     [`(let ([,x ,e1]) ,e2)     (normalize e1 (lambda (n1) `(let ([,x ,n1]) ,(normalize e2 k))))]
@@ -240,7 +246,7 @@
 
 
 (define (normalize-program x)
-  (normalize-term x))
+  (map normalize-term x))
 
 
 (define (constant-or-variable? x)
@@ -258,6 +264,9 @@
    (constant-or-variable (cv))
    (primitive (pp))
    (predicate (pr)))
+  (entry Prog)
+  (Prog ()
+    (e* ...))
   (Expr (e body)
         c x cv pp pr
 	(lambda (x* ...) body) 
@@ -312,6 +321,7 @@
 
 (define-language L9
   (extends L8)
+  (entry Prog)
   (Expr (e body)
    (- (x cv* ...))
    (+ (prim-app pp cv* ...)
@@ -326,6 +336,8 @@
 
 ;; Here we detect tail applications and return values
 (define-pass classify-applications : L8 (ir) -> L9 ()
+  (Prog : Prog (ir) -> Prog ()
+    [(,[e* #f -> e*] ... ,[e #t -> e]) `(,e* ... ,e)])
   (Expr : Expr (ir [tail #t]) -> Expr ()
     [(if ,e0 ,e1 ,e2)
      (let ([e00 (Expr e0 #f)]
@@ -359,6 +371,34 @@
 
     ))  
 
+(define-language L10
+  (extends L9)
+  (entry Prog)
+  (Expr (e body)
+    (- (lambda (x* ...) body))
+    (+ (define-lambda x (x* ...) e)
+       (nop))))
+
+(define-parser parse-L10 L10)
+
+(define-pass lift-lambdas : L9 (ir) -> L10 ()
+  (definitions
+    (define lambdas '()))
+  (Prog : Prog (ir) -> Prog ())
+  (Expr : Expr (ir) -> Expr ()
+    [(lambda (,x* ...) ,[body])
+     (error 'lift-lambdas "unexpected lambda" ir)]
+    [(let ((,x (lambda (,x* ...) ,[e0]))) ,[e1])
+     (set! lambdas (cons `(define-lambda ,x (,x* ...) ,e0) lambdas))
+     e1]
+    [(define ,x (lambda (,x* ...) ,[e]))
+     (set! lambdas (cons `(define-lambda ,x (,x* ...) ,e) lambdas))
+     `(nop)])
+  (let ([b (Prog ir)])
+    (parse-L10 (append (map unparse-L10 lambdas) (unparse-L10 b))))
+  )
+
+
 ;; ===========================================================================
 ;; Now "all" we have to do is string the various passes together and execute them 
 ;; ===========================================================================
@@ -373,11 +413,15 @@
     desugar-begin
     unparse-L5
     normalize-program
-    parse-L8
-    predicafy-ifs
-    alpha-rename
+   parse-L8
+;;   predicafy-ifs
+;;unparse-L8
+;;    alpha-rename
     classify-applications
-    unparse-L9))
+;;    unparse-L9
+    lift-lambdas
+    unparse-L10
+    ))
 
 (define compile
   (case-lambda 
