@@ -381,6 +381,12 @@
 
 (define-parser parse-L10 L10)
 
+;; Lift all lambdas to the top level
+;; This breaks lexical scoping, which is nasty.
+;; A better solution would be to handle top-level defines differently,
+;; then treat inner defines as lets, and keep the let, alpha-renaming
+;; references to the lambda to a fresh variable which is assigned in the
+;; let form.  Later, maybe.
 (define-pass lift-lambdas : L9 (ir) -> L10 ()
   (definitions
     (define lambdas '()))
@@ -395,10 +401,90 @@
      (set! lambdas (cons `(define-lambda ,x (,x* ...) ,e) lambdas))
      `(nop)])
   (let ([b (Prog ir)])
+    ;; This is horrible.  Surely there's a better way to do this?
     (parse-L10 (append (map unparse-L10 lambdas) (unparse-L10 b))))
   )
 
 
+;; Introduce types
+(define (colon? x)
+  (equal? x ':))
+(define (larrow? x)
+  (equal? x '<-))
+(define (rarrow? x)
+  (equal? x '->))
+(define (primitive-type? x)
+  (memq x '(i1 i8 i16 i32 float)))
+
+(define-language L11
+  (entry Prog)
+  (terminals
+    (constant (c))
+    (number (n))
+    (datum (d))
+    (variable (x))
+    (constant-or-variable (cv))
+    (primitive (pp))
+    (predicate (pr))
+    (colon (:))
+    (larrow (<-))
+    (rarrow (->))
+    (primitive-type (pt)))
+  (Type (t)
+    pt                 ;; primitive type
+    (n t)              ;; sized array
+    (t <- (t* ...))    ;; lambda type
+    (t* ...)           ;; struct type
+    (-> t)             ;; pointer type
+   )
+  (Typed-Expr (te)
+    (t : e))
+  (Prog (p)
+    (te* ...))
+  (Expr (e)
+   (nop)
+   (define-lambda x (x* ...) e)
+   (return c)
+   (tail-app x cv* ...)
+   (app x cv* ...)
+   (tail-pred-app pr cv* ...)
+   (pred-app pr cv* ...)
+   (tail-prim-app pp cv* ...)
+   (prim-app pp cv* ...)
+   c x cv pp pr
+   (quote d)
+   (define x e)
+   (if e0 e1 e2)
+   (let ([x0 e0]) e)
+   (set! x e)))
+  
+#|
+  
+(define-pass analyze-types : L10 (ir) -> L11 ()
+  ...
+  (Prog : Prog (ir) -> * ()
+    [(,e* ...) (for-each Expr e*)])
+  (Expr 
+  ...
+)
+
+  
+;; Final pass outputting LLVM IR
+#;
+(define-pass to-llvm : Lx (ir) -> * ()
+  (definitions
+    (define code ""))
+  (Prog : Prog (ir) -> * ()
+    [(,e* ...)
+     (for-each Expr e*)])
+  (Expr : Expr (ir) -> * ()
+
+  )
+  (Prog ir)
+  code
+)
+
+|#
 ;; ===========================================================================
 ;; Now "all" we have to do is string the various passes together and execute them 
 ;; ===========================================================================
