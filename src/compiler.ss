@@ -406,6 +406,150 @@
   )
 
 
+(define-record-type type-variable
+  (fields
+   (mutable final-type)
+   (mutable constraints))
+  (protocol
+   (lambda (x)
+     (lambda ()
+       (x #f '())))))
+
+(define-pass analyze-types : L10 (ir) -> L11 ()
+  (definitions
+    (define type-variables '())
+    (define (new-tv)
+      (let ([tv (make-type-variable)])
+        (set! type-variables (cons tv type-variables))
+        tv))
+    (define (env-lookup sym env)
+      (let ([v (assoc sym env)])
+        (if v (cdr v) (error 'env-lookup "unbound name" sym))))
+    (define (env-extend x v env)
+      (cons (cons x v) env))
+  (Prog : Prog (ir) -> Prog ()
+    ;; Prog handling is a bit of a bear, as we may need to handle and accumulate  global bindings
+    ;; This also means Expr handling needs to pass back a potential global binding
+    [(,e* ...)
+     (let loop ([e* e*]
+                [cte '()]
+                [prog `()])
+       (if (null? e*)
+           prog
+           (let-values ([(code externs) (Expr (car e*) cte)])
+             (loop (cdr e*) (if externs (cons externs cte) cte) `(,code ,@prog)))))])
+  (Expr : Expr (ir cte) -> Typed-Expr (externs)
+    ;; Constants and quoted datums are dead easy, we can set their final type already
+    [,c
+     (let ([tv (new-tv)]
+           [type (type-of c)])
+       (set-type-variable-final-type! tv type)
+       (values `(,tv ,c) #f))]
+    [(quote ,d)
+      (let ([tv (new-tv)]
+            [type (type-of d)])
+       (set-type-variable-final-type! tv type)
+       (values `(,tv (quote (,tv ,d))) #f))]
+    ;; Return is also easy
+    [(return ,c)
+      (let ([tv (new-tv)]
+            [type (type-of c)])
+       (set-type-variable-final-type! tv type)
+       (values `(,tv ,(return (,tv c))) #f))]
+    ;; We shouldn't need to deal with nop, really
+    [(nop)
+     (let ([tv (new-tv)])
+       (set-type-variable-final-type! tv (make-primitive-type 'void))
+       (values `(,tv (nop)) #f))]
+    ;; Tail applications have type 'poof
+    [(tail-app ,x ,cv* ...)
+     (let ([tv (env-lookup x cte)]
+           [rtv (new-tv (make-primitive-type 'poof))]
+           [ctv* (map (lambda (x)
+                        (if (symbol? x)
+                            (env-lookup x cte)
+                            (new-tv (type-of x))))
+                      cv*)])
+       (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (tail-app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    [(tail-prim-app ,x ,cv* ...)
+     (let ([tv (if (assoc x cte) (env-lookup x cte) (new-tv))]
+           [rtv (new-tv (make-primitive-type 'poof))]
+           [ctv* (map (lambda (x)
+                        (if (symbol? x)
+                            (env-lookup x cte)
+                            (new-tv (type-of x))))
+                      cv*)])
+       (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (tail-prim-app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    [(tail-pred-app ,x ,cv* ...)
+     (let ([tv (if (assoc x cte) (env-lookup x cte) (new-tv))]
+           [rtv (new-tv (make-primitive-type 'poof))]
+           [ctv* (map (lambda (x)
+                        (if (symbol? x)
+                            (env-lookup x cte)
+                            (new-tv (type-of x))))
+                      cv*)])
+       (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (tail-pred-app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    ;; actual applications need to delay their return type
+    [(app ,x ,cv* ...)
+     (let* ([tv (env-lookup x cte)]
+            [rtv (new-delayed-tv tv)]
+            [ctv* (map (lambda (x)
+                         (if (symbol? x)
+                             (env-lookup x cte)
+                             (new-tv (type-of x))))
+                       cv*)])
+       (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    [(prim-app ,x ,cv* ...)
+     (let* ([tv (env-lookup x cte)]
+            [rtv (new-delayed-tv tv)]
+            [ctv* (map (lambda (x)
+                         (if (symbol? x)
+                             (env-lookup x cte)
+                             (new-tv (type-of x))))
+                       cv*)])
+      (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (prim-app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    [(pred-app ,x ,cv* ...)
+     (let* ([tv (env-lookup x cte)]
+            [rtv (new-delayed-tv tv)]
+            [ctv* (map (lambda (x)
+                         (if (symbol? x)
+                             (env-lookup x cte)
+                             (new-tv (type-of x))))
+                       cv*)])
+       (add-type-constraint! tv (make-lambda-constraint 'any ctv*))
+       (values `(,rtv (pred-app (,tv ,x) ,@(zip ctv* cv*))) #f))]
+    ;; define and define-lambda create global bindings
+    [(define-lambda ,x (,x* ...) ,e)
+     (let* ([tv (new-tv)]
+            [tv* (map (lambda (x) (new-tv)) x*)]
+            [cte (env-extend x tv (env-extend* x* tv* cte))])
+       (let-values ([(code externs) (Expr e cte)])
+         (add-type-constraint! tv (make-lambda-constraint <get the expression type here>
+       
+    ;; primitives and primitive predicates may need to generate new type variables
+    [,pp
+     (let ([tv (if (assoc pp cte) (env-lookup pp cte) (new-tv))])
+       (values `(,tv ,pp) #f))]
+    [,pr
+      (let ([tv (if (assoc pr cte) (env-lookup pr cte) (new-tv))])
+       (values `(,tv ,pr) #f))]
+    ;; Other names must already be bound
+    [,x
+     (let ([tv (env-lookup x cte)])
+       (values `(,tv ,x) #f))]
+    [,cv
+     (error 'analyze-types "expr of type \"const or variable\" not picked up by relevant handler" cv)]
+    
+
+     
+
+                 
+  
 ;; Introduce types
 (define (colon? x)
   (equal? x ':))
@@ -458,16 +602,64 @@
    (let ([x0 e0]) e)
    (set! x e)))
   
-#|
+
   
 (define-pass analyze-types : L10 (ir) -> L11 ()
-  ...
+  (definitions
+    (define (type-of x)
+      (cond [(boolean? x) 'i1]
+            [(null? x) '(-> opaque)]
+            [(fixnum? x) 'i32]
+            [(flonum? x) 'float]
+            [(char? x) 'i8]
+            [(pair? x) '(2 (-> opaque))] 
+            
+
+            
   (Prog : Prog (ir) -> * ()
     [(,e* ...) (for-each Expr e*)])
-  (Expr 
+  (Expr : Expr (ir [env '()]) -> Typed-Expr (t)
+    [,c
+     (let ([t (type-of c)])
+       (values `(,t : ,c) t))]
+    [,x
+     (let ([t (env-lookup x env)])
+       (values `(,t : ,x) t))]
+    [,cv
+     (error 'analyze-types "constant-or-variable found but not handled" cv)]
+    [,pp
+     (let ([t (env-lookup pp env)])
+       (values `(,t : ,pp) t))]
+    [,pr
+     (let ([t (env-lookup pr env)])
+       (values `(,t : ,pr) t))]
+    [(nop)
+     (values `(void : (nop)) 'void))]
+    [(define-lambda ,x (,x* ...) ,e)
+     (let-values ([(e t) (Expr e env)])
+       (let ([t `(,t <- ,(map (lambda (x) 'undef) x*))])
+         (global-env-define x t)
+         (values `(,t : (define-lambda ,x (,x* ...) ,e)) t)))]
+    [(return ,c)
+     (let ([t (type-of c)])
+       (values `(,t : (return ,c)) t))]
+    [(tail-app ,x ,cv* ...)
+     (let ([t (return-type-of x env)]
+           [cvt* (map (lambda (x) (type-of x env)) cv*)])
+       (global-env-merge x `(,t <- (,cvt* ...)))
+       (values `(void : (tail-app ,x ,cv* ...)) t))]
+    [(app ,x ,cv* ...)
+     (let ([t (return-type-of x env)]
+           [cvt* (map (lambda (x) (type-of x env)) cv*)])
+       (global-env-merge x `(,t <- (,cvt* ...)))
+       (values `(,t : (app ,x ,cv* ...)) t))]
+           
+    
+     
   ...
 )
 
+#|
   
 ;; Final pass outputting LLVM IR
 #;
