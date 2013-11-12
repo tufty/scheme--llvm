@@ -3,6 +3,7 @@
  (export parse-L0 unparse-L0 L0? generate-constraints)
  (import (nanopass)
          (chezscheme)
+         (only (srfi :1) alist-cons)
          (compiler inference terms)
          (compiler inference constraints))
 
@@ -39,28 +40,29 @@
      [(exp env)
       (nanopass-case
        (L0 Expr) exp
-       [,x (list (make-eq-constraint (make-expr-term x) (make-var-term x)))]
+       [,x (list (make-eq-constraint (make-expr-term x) (env-lookup x env)))]
        [,c (list (make-eq-constraint (make-expr-term c) (constant-type c)))]
        [(lambda (,x) ,e)
-        (let ([tvar (make-var-term x)])
+        (let ([tvar (make-typevar-term)])
           (append
-           (generate-constraints e env)
+           (generate-constraints e (alist-cons x tvar env))
            (list (make-eq-constraint (make-expr-term exp) (make-arrow-term tvar (make-expr-term e))))
            ))]
        [(let (,x ,e) ,e1)
-        (append
-         (append
+        (let ([tvar (make-typevar-term)])
           (append
-           (list (make-eq-constraint (make-expr-term e) (make-var-term x)))
-           (generate-constraints e env))
-          (generate-constraints e1 env))
-         (list (make-eq-constraint (make-expr-term exp) (make-expr-term e1))))]
+           (append
+            (append
+             (list (make-eq-constraint (make-expr-term e) tvar))
+             (generate-constraints e env))
+            (generate-constraints e1 (alist-cons x tvar env)))
+           (list (make-eq-constraint (make-expr-term exp) (make-expr-term e1)))))]
        [(,e0 ,e1)
         (append
          (append (generate-constraints e0 env)
                  (generate-constraints e1 env))
-         ;;         (list (make-eq-constraint (make-expr-term exp) (make-arrow-term (make-expr-term e1) (make-expr-term e0))))
-         (list (make-eq-constraint (make-expr-term e0) (make-arrow-term (make-expr-term e1) (make-expr-term exp))))
-         )])]))
- 
+         (list
+          (make-eq-constraint (make-expr-term e0)
+                              (make-arrow-term (make-expr-term e1) (make-expr-term exp)))))]
+       )]))
  )

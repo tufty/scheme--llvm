@@ -3,7 +3,6 @@
  (export
   term? term=?
   make-expr-term expr-term? expr-term-expr
-  make-var-term var-term? var-term-var
   make-typevar-term typevar-term? typevar-term-name
   make-atomic-type-term atomic-type-term? atomic-type-term-type
   make-constructed-type-term constructed-type-term? constructed-type-term-tag constructed-type-term-termlist
@@ -34,21 +33,6 @@
  (define (expr-term=? a b)
    (and (expr-term? a) (expr-term? b)
         (equal? (expr-term-expr a) (expr-term-expr b))))
-
- ;; Variable term
- (define-record-type var-term
-   (parent term)
-   (fields var)
-   (protocol
-    (lambda (x)
-      (lambda (y)
-        (if (symbol? y)
-            ((x y))
-            (error 'var-term "non-symbol" y))))))
-
- (define (var-term=? a b)
-   (and (var-term? a) (var-term? b)
-        (equal? (var-term-var a) (var-term-var b))))
 
  ;; Infrastructure for typevars
  (define greeks
@@ -125,7 +109,6 @@
  ;; Equality tester
  (define (term=? a b)
    (or (expr-term=? a b)
-       (var-term=? a b)
        (typevar-term=? a b)
        (atomic-type-term=? a b)
        (constructed-type-term=? a b)

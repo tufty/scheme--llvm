@@ -15,7 +15,6 @@
     [(L0? l) (unparse-L0 l)]
     [(eq-constraint? l) `(,(pp (eq-constraint-lhs l)) = ,(pp (eq-constraint-rhs l)))]
     [(expr-term? l) (pp (expr-term-expr l))]
-    [(var-term? l) (string->symbol (format "~a~a" #\x03a4 (pp (var-term-var l))))]
     [(typevar-term? l) (pp (typevar-term-name l))]
     [(atomic-type-term? l) (pp (atomic-type-term-type l))]
     [(arrow-term? l) `(,(pp (arrow-term-lhs l)) ,(string->symbol (string #\x21fe)) ,(pp (arrow-term-rhs l)))]
