@@ -6,7 +6,8 @@
   (srfi :1)
   (compiler inference constraints)
   (compiler inference terms)
-  (compiler inference substitution))
+  (compiler inference substitution)
+  (compiler inference pp))
 
  (define unify
    (case-lambda
@@ -33,14 +34,17 @@
                    ;; For variables, we instantiate a new type variable and re-evaluate
                    ;; Shortcircuited to get basic inference working (see above condition)
                    [(var-term? lhs)
-                    (unify (cons (make-eq-constraint (make-typevar-term) rhs) (cdr constraints)) theta)]
+                    (let ([tv (make-typevar-term)])
+                      (unify (append
+                              (list (make-eq-constraint tv rhs))
+                              (cdr constraints)) theta))]
                    ;; Atomic types get reversed if necessary
                    [(atomic-type-term? lhs)
                     (cond
                      [(or (expr-term? rhs) (typevar-term? rhs) (var-term? rhs))
                       (unify (cons (make-eq-constraint rhs lhs) (cdr constraints)) theta)]
                      [else
-                      (error 'unify "types do not unify" lhs rhs)])]
+                      (error 'unify "types do not unify" (pp lhs) (pp rhs) (pp theta))])]
                    ;; Constructed types similarly
                    [(constructed-type-term? lhs)
                     (cond
@@ -55,7 +59,7 @@
                               (cdr constraints))
                              theta)]
                      [else
-                      (error 'unify "types do not unify" lhs rhs)])]                 
+                      (error 'unify "types do not unify"  (pp lhs) (pp rhs) (pp theta))])]                 
                    )))]
            [else (error 'unify "unhandled constraint type" c)]))])]))
 
