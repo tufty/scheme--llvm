@@ -19,6 +19,10 @@
     [(typevar-term? l) (pp (typevar-term-name l))]
     [(atomic-type-term? l) (pp (atomic-type-term-type l))]
     [(arrow-term? l) `(,(pp (arrow-term-lhs l)) ,(string->symbol (string #\x21fe)) ,(pp (arrow-term-rhs l)))]
+    [(union-type-term? l)
+     (fold (lambda (x l) (if (null? l) `(,(pp x)) `(,(pp x) ∪ ,@l))) '() (constructed-type-term-termlist l))]
+    [(intersection-type-term? l)
+     (fold (lambda (x l) (if (null? l) `(,(pp x)) `(,(pp x) ∩ ,@l))) '() (constructed-type-term-termlist l))]
     [(constructed-type-term? l)
      (fold (lambda (x l) `(,@l ,(pp x))) `(,(constructed-type-term-tag l)) (constructed-type-term-termlist l))]
     [else l]))

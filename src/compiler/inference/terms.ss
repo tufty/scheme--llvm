@@ -7,6 +7,8 @@
   make-atomic-type-term atomic-type-term? atomic-type-term-type
   make-constructed-type-term constructed-type-term? constructed-type-term-tag constructed-type-term-termlist
   make-arrow-term arrow-term? arrow-term-lhs arrow-term-rhs
+  make-union-type-term union-type-term?
+  make-intersection-type-term intersection-type-term?
   term-replace
   term-instantiate term-typevars
   )
@@ -92,20 +94,48 @@
    (and (constructed-type-term? a) (constructed-type-term? b)
         (equal? (constructed-type-term-tag a) (constructed-type-term-tag b))
         (every equal? (constructed-type-term-termlist a) (constructed-type-term-termlist b))))
-   
 
- (define-record-type arrow-term
-   (parent constructed-type-term)
-   (protocol
-    (lambda (x)
-      (lambda (y z)
-        ((x '-> y z))))))
+ (define (make-arrow-term l r)
+   (make-constructed-type-term '-> l r))
 
- (define (arrow-term-lhs x)
+ (define (arrow-term? x)
+   (and (constructed-type-term? x)
+        (equal? '-> (constructed-type-term-tag x))))
+
+  (define (arrow-term-lhs x)
    (car (constructed-type-term-termlist x)))
 
  (define (arrow-term-rhs x)
    (cadr (constructed-type-term-termlist x)))
+
+ (define uniq
+   (lambda args
+     (fold (lambda (x l)
+             (if (find (lambda (y) (term=? y x)) l) l (cons x l))) '() args)))
+ 
+ (define make-union-type-term
+   (lambda rest
+     (let ([unique-terms (apply uniq rest)])
+       (if (= (length unique-terms) 1)
+           (car unique-terms)
+           (apply make-constructed-type-term 'U unique-terms)))))
+
+ (define (union-type-term? x)
+   (and (constructed-type-term? x)
+        (equal? 'U (constructed-type-term-tag x))))
+
+ (define make-intersection-type-term
+   (lambda rest
+     (let ([unique-terms (apply uniq rest)])
+       (if (= (length unique-terms) 1)
+         (car unique-terms)
+         (apply make-constructed-type-term '^ unique-terms)))))
+
+ (define (intersection-type-term? x)
+   (and (constructed-type-term? x)
+        (equal? '^ (constructed-type-term-tag x))))
+
+ 
  
  ;; Equality tester
  (define (term=? a b)
@@ -119,9 +149,14 @@
  (define (term-replace k v t)
    (cond
     [(term=? t k) v]
-    [(arrow-term? t)
-     (make-arrow-term (term-replace k v (arrow-term-lhs t))
-                      (term-replace k v (arrow-term-rhs t)))]
+    [(union-type-term? t)
+     (apply make-union-type-term
+            (map (lambda (x) (term-replace k v x))
+                 (constructed-type-term-termlist t)))]
+    [(intersection-type-term? t)
+     (apply make-intersection-type-term
+            (map (lambda (x) (term-replace k v x))
+                 (constructed-type-term-termlist t)))]
     [(constructed-type-term? t)
      (apply make-constructed-type-term
             (constructed-type-term-tag t)
@@ -135,9 +170,14 @@
     [(expr-term? x) x];(error 'term-instantiate "uninstantiable term ~a" x)]
     [(typevar-term? x) (cdr (assoc x env))]
     [(atomic-type-term? x) x]
-    [(arrow-term? x)
-     (make-arrow-term (term-instantiate (arrow-term-lhs x) env)
-                      (term-instantiate (arrow-term-rhs x) env))]
+    [(union-type-term? x)
+     (apply make-union-type-term
+            (map (lambda (x) (term-instantiate x env))
+                 (constructed-type-term-termlist x)))]
+    [(intersection-type-term? x)
+     (apply make-intersection-type-term
+            (map (lambda (x) (term-instantiate x env))
+                 (constructed-type-term-termlist x)))]
     [(constructed-type-term? x)
      (apply make-constructed-type-term
             (constructed-type-term-tag x)

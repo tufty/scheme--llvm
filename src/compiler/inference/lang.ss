@@ -17,7 +17,7 @@
  
  (define (env-lookup x env)
    (cond [(assoc x env) => cdr]
-         [else (error 'env-lookup "meh")]))
+         [else (error 'env-lookup "unbound variable" x env)]))
 
  (define (constant? x)
    (or (number? x) (boolean? x)))
@@ -28,6 +28,7 @@
     (constant (c)))
    (Expr (e)
          x c
+         (if e0 e1 e2)
          (lambda (x) e)
          (let (x e) e1)
          (begin e0 e1)
@@ -49,6 +50,16 @@
            (generate-constraints e (alist-cons x tvar env))
            (list (make-eq-constraint (make-expr-term exp) (make-arrow-term tvar (make-expr-term e))))
            ))]
+       [(if ,e0 ,e1 ,e2)
+        (append
+         (append
+          (append
+           (generate-constraints e0 env)
+           (generate-constraints e1 env))
+          (generate-constraints e2 env))
+         (list
+          (make-eq-constraint (make-expr-term e0) (make-atomic-type-term 'boolean))
+          (make-eq-constraint (make-expr-term exp) (make-union-type-term (make-expr-term e1) (make-expr-term e2)))))]
        [(let (,x ,e) ,e1)
         (let ([tvar (make-typevar-term)])
           (append

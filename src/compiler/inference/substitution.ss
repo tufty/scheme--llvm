@@ -16,9 +16,6 @@
  (define (substitute t s)
    (cond
     [(subs-lookup t s) => cdr]
-    [(arrow-term? t)
-     (make-arrow-term (substitute (arrow-term-lhs t) s)
-                      (substitute (arrow-term-rhs t) s))]
     [(constructed-type-term? t)
      (apply make-constructed-type-term
             (constructed-type-term-tag t)
