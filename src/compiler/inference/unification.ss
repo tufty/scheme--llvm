@@ -11,16 +11,22 @@
 
  (define unify
    (case-lambda
-     [(constraints) (unify constraints (new-substitution))]
+     [(constraints)
+ ;;     (display (pp constraints))(newline)
+      (unify constraints (new-substitution))]
      [(constraints theta)
       (cond
        [(null? constraints) theta]
        [else
         (let ([c (car constraints)])
+          (display "===========\n")
+                (display (pp constraints))(newline)
+
+          (display "theta :\n")(display (pp theta))(newline)
           (cond
            [(eq-constraint? c)
-            (let ([lhs (eq-constraint-lhs c)]
-                  [rhs (substitute (eq-constraint-rhs c) theta)])
+            (let ([lhs (constraint-lhs c)]
+                  [rhs (substitute (constraint-rhs c) theta)])
               (if (term=? lhs rhs)  ;; tautology
                   (unify (cdr constraints) theta)
                   (cond
@@ -54,6 +60,16 @@
                      [else
                       (error 'unify (format "types ~a and ~a do not unify in\n~a\n" (pp lhs) (pp rhs) (pp theta)))])]
                    )))]
+           [(inst-constraint? c)
+            (let ([s (substitute (constraint-rhs c) theta)])
+              (unify
+               (cons (constraint-instantiate
+                      (constraint-lhs c)
+                      s)
+                     (cdr constraints))
+               theta))]
+
+;;              (constraint-instantiate c) (cdr constraints)) theta)]
            [else (error 'unify "unhandled constraint type" c)]))])]))
 
  )

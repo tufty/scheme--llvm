@@ -8,6 +8,7 @@
   make-constructed-type-term constructed-type-term? constructed-type-term-tag constructed-type-term-termlist
   make-arrow-term arrow-term? arrow-term-lhs arrow-term-rhs
   term-replace
+  term-instantiate term-typevars
   )
  (import (except (chezscheme) assoc filter find fold-right for-each map member partition remove remove! append! make-list list-copy break reverse! last-pair iota)
          (srfi :1))
@@ -122,9 +123,31 @@
      (make-arrow-term (term-replace k v (arrow-term-lhs t))
                       (term-replace k v (arrow-term-rhs t)))]
     [(constructed-type-term? t)
-     (apply make-constructed-type-term (constructed-type-term-tag t)
-                                 (map (lambda (x) (term-replace k v x))
-                                      (constructed-type-term-termlist t)))]
+     (apply make-constructed-type-term
+            (constructed-type-term-tag t)
+            (map (lambda (x) (term-replace k v x))
+                 (constructed-type-term-termlist t)))]
     [else t]))
 
+ ;; instantiation of terms
+ (define (term-instantiate x env)
+   (cond
+    [(expr-term? x) x];(error 'term-instantiate "uninstantiable term ~a" x)]
+    [(typevar-term? x) (cdr (assoc x env))]
+    [(atomic-type-term? x) x]
+    [(arrow-term? x)
+     (make-arrow-term (term-instantiate (arrow-term-lhs x) env)
+                      (term-instantiate (arrow-term-rhs x) env))]
+    [(constructed-type-term? x)
+     (apply make-constructed-type-term
+            (constructed-type-term-tag x)
+            (map (lambda (x) (term-instantiate x env)) (constructed-type-term-termlist x)))]))
+
+ (define (term-typevars x)
+   (cond
+    [(typevar-term? x) (list x)]
+    [(constructed-type-term? x)
+     (fold append '() (map term-typevars (constructed-type-term-termlist x)))]
+    [else '()]))
+ 
  )

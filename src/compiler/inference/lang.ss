@@ -30,6 +30,7 @@
          x c
          (lambda (x) e)
          (let (x e) e1)
+         (begin e0 e1)
          (e0 e1)))
 
  (define-parser parse-L0 L0)
@@ -56,13 +57,21 @@
              (list (make-eq-constraint (make-expr-term e) tvar))
              (generate-constraints e env))
             (generate-constraints e1 (alist-cons x tvar env)))
-           (list (make-eq-constraint (make-expr-term exp) (make-expr-term e1)))))]
+           (list (make-inst-constraint (make-expr-term exp) (make-expr-term e1)))))]
+       [(begin ,e0 ,e1)
+        (append
+         (append
+          (generate-constraints e0 env)
+          (generate-constraints e1 env))
+         (list (make-eq-constraint (make-expr-term exp) (make-expr-term e1))))]
        [(,e0 ,e1)
+        (let ([tv (make-typevar-term)])
         (append
          (append (generate-constraints e0 env)
                  (generate-constraints e1 env))
          (list
-          (make-eq-constraint (make-expr-term e0)
-                              (make-arrow-term (make-expr-term e1) (make-expr-term exp)))))]
+          (make-inst-constraint tv (make-expr-term e0))
+          (make-eq-constraint tv
+                                (make-arrow-term (make-expr-term e1) (make-expr-term exp)))
        )]))
  )
