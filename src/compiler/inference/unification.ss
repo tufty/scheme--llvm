@@ -12,17 +12,15 @@
  (define unify
    (case-lambda
      [(constraints)
- ;;     (display (pp constraints))(newline)
       (unify constraints (new-substitution))]
      [(constraints theta)
       (cond
        [(null? constraints) theta]
        [else
         (let ([c (car constraints)])
-          (display "===========\n")
-                (display (pp constraints))(newline)
-
-          (display "theta :\n")(display (pp theta))(newline)
+;;          (display "===========\n")
+;;          (display (pp constraints))(newline)
+;;          (display "theta :\n")(display (pp theta))(newline)
           (cond
            [(eq-constraint? c)
             (let ([lhs (constraint-lhs c)]

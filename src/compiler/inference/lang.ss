@@ -71,7 +71,6 @@
                  (generate-constraints e1 env))
          (list
           (make-inst-constraint tv (make-expr-term e0))
-          (make-eq-constraint tv
-                                (make-arrow-term (make-expr-term e1) (make-expr-term exp)))
+          (make-eq-constraint tv (make-arrow-term (make-expr-term e1) (make-expr-term exp))))))]
        )]))
  )
