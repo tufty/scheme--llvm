@@ -18,9 +18,9 @@
        [(null? constraints) theta]
        [else
         (let ([c (car constraints)])
-;;          (display "===========\n")
-;;          (display (pp constraints))(newline)
-;;          (display "theta :\n")(display (pp theta))(newline)
+ ;;         (display "===========\n")
+ ;;         (display (pp constraints))(newline)
+ ;;         (display "theta :\n")(display (pp theta))(newline)
           (cond
            [(eq-constraint? c)
             (let ([lhs (constraint-lhs c)]
@@ -42,10 +42,14 @@
                       (unify (cons (make-eq-constraint rhs lhs) (cdr constraints)) theta)]
                      [else
                       (error 'unify (format "types ~a and ~a do not unify in\n~a\n" (pp lhs) (pp rhs) (pp theta)))])]
+                   [(or  (union-type-term? lhs) (intersection-type-term? lhs))
+                    (if (expr-term? rhs)
+                        (unify (cons (make-eq-constraint rhs lhs) (cdr constraints)) theta)
+                        (unify (cdr constraints) (subs-extend lhs rhs theta)))]
                    ;; Constructed types similarly
                    [(constructed-type-term? lhs)
                     (cond
-                     [(or (expr-term? rhs) (typevar-term? rhs))
+                     [(or (expr-term? rhs) (typevar-term? rhs) (union-type-term? rhs) (intersection-type-term? rhs))
                       (unify (cons (make-eq-constraint rhs lhs) (cdr constraints)) theta)]
                      [(and (constructed-type-term? rhs) (equal? (constructed-type-term-tag lhs)
                                                                 (constructed-type-term-tag rhs)))

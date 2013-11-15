@@ -117,7 +117,8 @@
              (if (find (lambda (y) (term=? y x)) l) l (cons x l))) '() args)))
  
  (define make-union-type-term
-   (lambda rest
+    (lambda rest
+;;      (display "make-union-type-term ") (for-each display rest) (newline)
      (let ([unique-terms (apply uniq rest)])
        (if (= (length unique-terms) 1)
            (car unique-terms)
@@ -132,8 +133,10 @@
     [(and (union-type-term? a) (union-type-term? b))
      (constructed-type-term=? a b)]
     [(union-type-term? a)
+;;     (display "union-type-term=? a:") (display a) (display " b:") (display b)(newline)
      (any (cut term=? <> b) (constructed-type-term-termlist a))]
     [(union-type-term? b)
+;;     (display "union-type-term=? a:") (display a) (display " b:") (display b)(newline)
      (any (cut term=? <> a) (constructed-type-term-termlist b))]
     [else #f]))
 

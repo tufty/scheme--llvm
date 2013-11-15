@@ -1,8 +1,10 @@
 (library
  (compiler inference substitution)
  (export new-substitution subs-lookup substitute subs-extend)
- (import (except (rnrs) assoc filter find fold-right for-each map member partition remove)
-         (srfi :1) (compiler inference terms))
+ (import (chezscheme)
+         (compiler inference terms))
+
+ (include "cut.scm")
 
  (define new-substitution list)
 
@@ -16,10 +18,13 @@
  (define (substitute t s)
    (cond
     [(subs-lookup t s) => cdr]
+    [(union-type-term? t)
+     (apply make-union-type-term
+            (map (cut substitute <> s) (constructed-type-term-termlist t)))]
     [(constructed-type-term? t)
      (apply make-constructed-type-term
             (constructed-type-term-tag t)
-            (map (lambda (x) (substitute x s)) (constructed-type-term-termlist t)))]
+            (map (cut substitute <> s) (constructed-type-term-termlist t)))]
     [else t]))
  
  
