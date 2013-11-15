@@ -15,6 +15,9 @@
  (import (except (chezscheme) assoc filter find fold-right for-each map member partition remove remove! append! make-list list-copy break reverse! last-pair iota)
          (srfi :1))
 
+ ;; Horrible hack.
+ (include "cut.scm")
+ 
  ;; Underlying term type
  (define-record-type term
    (nongenerative))
@@ -124,6 +127,16 @@
    (and (constructed-type-term? x)
         (equal? 'U (constructed-type-term-tag x))))
 
+ (define (union-type-term=? a b)
+   (cond
+    [(and (union-type-term? a) (union-type-term? b))
+     (constructed-type-term=? a b)]
+    [(union-type-term? a)
+     (any (cut term=? <> b) (constructed-type-term-termlist a))]
+    [(union-type-term? b)
+     (any (cut term=? <> a) (constructed-type-term-termlist b))]
+    [else #f]))
+
  (define make-intersection-type-term
    (lambda rest
      (let ([unique-terms (apply uniq rest)])
@@ -135,13 +148,26 @@
    (and (constructed-type-term? x)
         (equal? '^ (constructed-type-term-tag x))))
 
+  (define (intersection-type-term=? a b)
+   (cond
+    [(and (intersection-type-term? a) (intersection-type-term? b))
+     (constructed-type-term=? a b)]
+    [(intersection-type-term? a)
+     (every (cut term=? <> b) (constructed-type-term-termlist a))]
+    [(intersection-type-term? b)
+     (every (cut term=? <> a) (constructed-type-term-termlist b))]
+    [else #f]))
+
  
  
- ;; Equality tester
+ ;; Equality tester.  Must now take compatibility into account, particularly for
+ ;; union and intersection types.
  (define (term=? a b)
    (or (expr-term=? a b)
        (typevar-term=? a b)
        (atomic-type-term=? a b)
+ ;;      (union-type-term=? a b)
+ ;;      (intersection-type-term=? a b)
        (constructed-type-term=? a b)
        ))
 
@@ -151,17 +177,14 @@
     [(term=? t k) v]
     [(union-type-term? t)
      (apply make-union-type-term
-            (map (lambda (x) (term-replace k v x))
-                 (constructed-type-term-termlist t)))]
+            (map (cut term-replace k v <>) (constructed-type-term-termlist t)))]
     [(intersection-type-term? t)
      (apply make-intersection-type-term
-            (map (lambda (x) (term-replace k v x))
-                 (constructed-type-term-termlist t)))]
+            (map (cut term-replace k v <>) (constructed-type-term-termlist t)))]
     [(constructed-type-term? t)
      (apply make-constructed-type-term
             (constructed-type-term-tag t)
-            (map (lambda (x) (term-replace k v x))
-                 (constructed-type-term-termlist t)))]
+            (map (cut term-replace k v <>) (constructed-type-term-termlist t)))]
     [else t]))
 
  ;; instantiation of terms
@@ -172,16 +195,14 @@
     [(atomic-type-term? x) x]
     [(union-type-term? x)
      (apply make-union-type-term
-            (map (lambda (x) (term-instantiate x env))
-                 (constructed-type-term-termlist x)))]
+            (map (cut term-instantiate <> env) (constructed-type-term-termlist x)))]
     [(intersection-type-term? x)
      (apply make-intersection-type-term
-            (map (lambda (x) (term-instantiate x env))
-                 (constructed-type-term-termlist x)))]
+            (map (cut term-instantiate <> env) (constructed-type-term-termlist x)))]
     [(constructed-type-term? x)
      (apply make-constructed-type-term
             (constructed-type-term-tag x)
-            (map (lambda (x) (term-instantiate x env)) (constructed-type-term-termlist x)))]))
+            (map (cut term-instantiate <> env) (constructed-type-term-termlist x)))]))
 
  (define (term-typevars x)
    (cond
