@@ -11,6 +11,7 @@
   make-intersection-type-term intersection-type-term?
   term-replace
   term-instantiate term-typevars
+  T
   )
  (import (except (chezscheme) assoc filter find fold-right for-each map member partition remove remove! append! make-list list-copy break reverse! last-pair iota)
          (srfi :1))
@@ -42,9 +43,7 @@
 
  ;; Infrastructure for typevars
  (define greeks
-  '(#\x03b1 #\x03b2 #\x03b3 #\x03b4 #\x03b5 #\x03b6 #\x03b7 #\x03b8 #\x03b9 #\x03ba
-    #\x03bb #\x03bc #\x03bd #\x03be #\x03bf #\x03c0 #\x03c1 #\x03c2 #\x03c3 #\x03c4
-    #\x03c5 #\x03c6 #\x03c7 #\x03c8 #\x03c9))
+  '(#\x03b1 #\x03b2 #\x03b3 #\x03b4))
 
  (define typevar-name
    (let ([count 0] [chars greeks])
@@ -62,8 +61,10 @@
    (fields name)
    (protocol
     (lambda (x)
-      (lambda ()
-        ((x (typevar-name)))))))
+      (lambda y
+        (if (null? y)
+            ((x (typevar-name)))
+            ((x y)))))))  
 
  (define (typevar-term=? a b)
    (and (typevar-term? a) (typevar-term? b)
@@ -76,7 +77,9 @@
    (protocol
     (lambda (x)
       (lambda (y)
-        ((x y))))))
+        (if (member y greeks)
+            (make-typevar-term y)
+            ((x y)))))))
 
  (define (atomic-type-term=? a b)
    (and (atomic-type-term? a) (atomic-type-term? b)
@@ -214,4 +217,18 @@
      (fold append '() (map term-typevars (constructed-type-term-termlist x)))]
     [else '()]))
  
+ (define-syntax T
+   (syntax-rules (->)
+     [(_ (a -> b)) (make-arrow-term (T a) (T b))]
+     [(_ (t a)) (make-constructed-type-term 't (T a))]
+     [(_ (t a b* ...)) (apply make-constructed-type-term 't (T* a b* ...))]
+     [(_ a) (make-atomic-type-term 'a)]
+     ))
+
+ (define-syntax T*
+   (syntax-rules ()
+     [(_) '()]
+     [(_ a) (list (T a))]
+     [(_ a b* ...) (cons (T a) (T* b* ...))]))
+  
  )
