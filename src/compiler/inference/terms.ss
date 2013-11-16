@@ -229,6 +229,6 @@
    (syntax-rules ()
      [(_) '()]
      [(_ a) (list (T a))]
-     [(_ a b* ...) (cons (T a) (T* b* ...))]))
+     [(_ a b* ...) (cons (T a) (T* b* ...))])) 
   
  )
