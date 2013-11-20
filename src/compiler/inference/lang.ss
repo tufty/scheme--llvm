@@ -54,8 +54,10 @@
          [else (error 'primitive-type "no type found for primitive" pr)]))
 
  (define scheme-primitives
-   (map (lambda (x) (cons x #f))
-        '(* + - ... / < <= = => > >= _ abs and append apply assoc assq assv begin
+   (map (lambda (x) (if (pair? x) x (cons x #f)))
+        `((* . ,(T (^ ((list fixnum fixnum) -> fixnum) ((list flonum flonum) -> flonum))))
+          (+ . ,(T ((list α α) -> α)))
+          - ... / < <= = => > >= _ abs and append apply assoc assq assv begin
             binary-port? boolean=? boolean? bytevector bytevector-append
             bytevector-copy bytevector-copy! bytevector-length bytevector-u8-ref
             bytevector-u8-set! bytevector? caar cadr call-with-current-continuation
@@ -124,12 +126,12 @@
      [(exp env)
       (define (cg-aexp exp env)
         (nanopass-case (L0 AExpr) exp
-          [,x
+          [,pr
+           `(,(make-ei-constraint (make-expr-term exp) (primitive-type pr)))]
+          [,x 
            `(,(make-eq-constraint (make-expr-term exp) (env-lookup x env)))]
           [,c
            `(,(make-eq-constraint (make-expr-term exp) (constant-type c)))]
-          [,pr
-           `(,(make-eq-constraint (make-expr-term exp) (primitive-type pr)))]
           [(quote ,d)
            `(,(make-eq-constraint (make-expr-term exp) (datum-type d)))]
           [(lambda (,x* ...) ,e)
@@ -163,13 +165,15 @@
              ,(make-eq-constraint (make-expr-term exp) (make-expr-term e1)))]
           [(,ae ,ae* ...)
            (let ([tvar (make-typevar-term)]
+                 [tvars (map (lambda (x) (make-typevar-term)) ae*)]
                  [texprs (map make-expr-term ae*)])
              `(,@(cg-aexp ae env)
                ,@(fold (lambda (e l) `(,@e ,@l)) '() (map (cut cg-aexp <> env) ae*))
-               ,(make-inst-constraint tvar (make-expr-term ae))
+               ,@(fold (lambda (e l) `(,e ,@l)) '() (map make-eq-constraint tvars texprs))
                ,(make-eq-constraint tvar (make-arrow-term
-                                          (apply make-constructed-type-term 'list texprs)
-                                          (make-expr-term exp)))))]
+                                                         (apply make-constructed-type-term 'list tvars)
+                                                         (make-expr-term exp)))
+               ,(make-ii-constraint tvar (make-expr-term ae))))]
           [else (error 'cg-cexp (format "Error generating constraints, invalid CExpr ~a" exp))]))
 
       ;; Main entry point
@@ -183,7 +187,7 @@
            `(,@(map make-eq-constraint texprs tvars)
              ,@(fold (lambda (e l) `(,@e ,@l)) '() (map (cut cg <> new-env) e*))
              ,@(cg e new-env)
-             ,(make-inst-constraint (make-expr-term exp) (make-expr-term e))))]
+             ,(make-ii-constraint (make-expr-term exp) (make-expr-term e))))]
         [else (error 'cg (format "Error generating constraints, invalid Expr ~a" exp))])]))
              
    )

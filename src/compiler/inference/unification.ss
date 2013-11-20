@@ -18,9 +18,9 @@
        [(null? constraints) theta]
        [else
         (let ([c (car constraints)])
- ;;         (display "===========\n")
- ;;         (display (pp constraints))(newline)
- ;;         (display "theta :\n")(display (pp theta))(newline)
+;;          (display "===========\n")
+;;          (display (pp constraints))(newline)
+;;          (display "theta :\n")(display (pp theta))(newline)
           (cond
            [(eq-constraint? c)
             (let ([lhs (constraint-lhs c)]
@@ -62,12 +62,10 @@
                      [else
                       (error 'unify (format "types ~a and ~a do not unify in\n~a\n" (pp lhs) (pp rhs) (pp theta)))])]
                    )))]
-           [(inst-constraint? c)
-            (let ([s (substitute (constraint-rhs c) theta)])
+           [(or (ii-constraint? c) (ei-constraint? c))
+            (let ([r (substitute (constraint-rhs c) theta)])
               (unify
-               (cons (constraint-instantiate
-                      (constraint-lhs c)
-                      s)
+               (cons (constraint-instantiate (constraint-lhs c) r)
                      (cdr constraints))
                theta))]
 

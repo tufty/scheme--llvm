@@ -3,7 +3,9 @@
  (export
   constraint?  constraint-lhs constraint-rhs
   make-eq-constraint eq-constraint?
-  make-inst-constraint inst-constraint? constraint-instantiate)
+  make-ei-constraint ei-constraint?
+  make-ii-constraint ii-constraint?
+  constraint-instantiate)
  (import (chezscheme)
          (compiler inference terms))  
  
@@ -24,16 +26,22 @@
    (parent constraint)
    (protocol
     (lambda (x)
-      (lambda (l r)
-        ((x l r))))))
-
-  ;; An equality constraint
- (define-record-type inst-constraint
+      (lambda (y z) ((x y z))))))
+ 
+ ;; Explicit instance constraint
+ (define-record-type ei-constraint
    (parent constraint)
    (protocol
     (lambda (x)
-      (lambda (l r)
-        ((x l r))))))
+      (lambda (y z) ((x y z))))))
+
+ ;; Implicit instance constraint
+ (define-record-type ii-constraint
+   (parent constraint)
+   (protocol
+    (lambda (x)
+      (lambda (y z) ((x y z))))))
+
 
  (define (constraint-instantiate lhs rhs)
    (let ([lhs-typevars (map (lambda (x) (cons x (make-typevar-term))) (term-typevars lhs))]

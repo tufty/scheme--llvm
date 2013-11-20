@@ -64,7 +64,7 @@
       (lambda y
         (if (null? y)
             ((x (typevar-name)))
-            ((x y)))))))  
+            ((x (car y))))))))
 
  (define (typevar-term=? a b)
    (and (typevar-term? a) (typevar-term? b)
@@ -77,7 +77,7 @@
    (protocol
     (lambda (x)
       (lambda (y)
-        (if (member y greeks)
+        (if (member (string-ref (symbol->string y) 0) greeks)
             (make-typevar-term y)
             ((x y)))))))
 
@@ -230,5 +230,5 @@
      [(_) '()]
      [(_ a) (list (T a))]
      [(_ a b* ...) (cons (T a) (T* b* ...))])) 
-  
+ 
  )
